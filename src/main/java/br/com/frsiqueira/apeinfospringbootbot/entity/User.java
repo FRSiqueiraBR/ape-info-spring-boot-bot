@@ -14,5 +14,4 @@ public @Data class User {
     private String chatId;
     @Column(name = "name")
     private String name;
-
 }
