@@ -1,7 +1,6 @@
 package br.com.frsiqueira.apeinfospringbootbot.bot;
 
 import br.com.frsiqueira.apeinfospringbootbot.entity.Apartment;
-import br.com.frsiqueira.apeinfospringbootbot.repository.ApartmentRepository;
 import br.com.frsiqueira.apeinfospringbootbot.service.ApartmentService;
 import br.com.frsiqueira.apeinfospringbootbot.util.MessageUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,8 +49,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
             if (update.hasMessage()) {
                 Message message = update.getMessage();
                 if (message.hasText() || message.hasLocation()) {
-                    if (this.isRemainingDays(message.getText())) {
+                    if (this.isRemainingDaysCommand(message.getText())) {
                         execute(this.onDaysRemainingChosen(message));
+                    } else if(this.isStartCommand(message.getText())) {
+                        execute(this.onStartChosen(message));
                     }
                 }
             }
@@ -99,21 +100,31 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private SendMessage onDaysRemainingChosen(Message message) {
-        Period period = remainingDays();
-
         return new SendMessage()
                 .enableMarkdown(true)
                 .setReplyToMessageId(message.getMessageId())
                 .setChatId(message.getChatId())
                 .setReplyMarkup(getMainMenuKeyboard())
-                .setText(generateRemainingDaysToRelease(period));
+                .setText(generateRemainingDaysToRelease(remainingDays()));
     }
 
-    private boolean isRemainingDays(String message) {
-        return "/dias-restantes".equals(message);
+    private SendMessage onStartChosen(Message message) {
+        return new SendMessage()
+                .enableMarkdown(true)
+                .setReplyToMessageId(message.getMessageId())
+                .setChatId(message.getChatId())
+                .setReplyMarkup(getMainMenuKeyboard())
+                .setText("Bem vindo");
     }
 
-    //TODO: fix mensagem com dias zerados
+    private boolean isRemainingDaysCommand(String message) {
+        return this.messageUtil.getMessage("options.days-remaining").equals(message);
+    }
+
+    private boolean isStartCommand(String message) {
+        return this.messageUtil.getMessage("options.start").equals(message);
+    }
+
     private static String generateRemainingDaysToRelease(Period period) {
         int years = period.getYears();
         int months = period.getMonths();
@@ -125,7 +136,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
             message = "Faltam " + years + " anos, " + months + " meses e " + days + " dias";
         } else if (days != 0 && months != 0) {
             message = "Faltam " + months + " meses e " + days + " dias";
-        } else if (days != 0) {
+        } else if (days != 0 && years == 0) {
             message = "Faltam " + days + " dias";
         } else {
             message = "Hoje é a data de entrega!";

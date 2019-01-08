@@ -7,7 +7,7 @@ import java.util.Date;
 
 @Entity(name = "apartment")
 public @Data class Apartment {
-    @Id @GeneratedValue(strategy = GenerationType.AUTO)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
     @Column(name = "name")
     private String name;
