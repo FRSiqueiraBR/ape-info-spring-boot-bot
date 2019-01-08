@@ -104,8 +104,8 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 .enableMarkdown(true)
                 .setReplyToMessageId(message.getMessageId())
                 .setChatId(message.getChatId())
-                .setReplyMarkup(getMainMenuKeyboard())
-                .setText(generateRemainingDaysToRelease(remainingDays()));
+                .setReplyMarkup(this.getMainMenuKeyboard())
+                .setText(this.generateRemainingDaysToRelease(this.remainingDays()));
     }
 
     private SendMessage onStartChosen(Message message) {
@@ -125,23 +125,38 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         return this.messageUtil.getMessage("options.start").equals(message);
     }
 
-    private static String generateRemainingDaysToRelease(Period period) {
+    private String generateRemainingDaysToRelease(Period period) {
         int years = period.getYears();
         int months = period.getMonths();
         int days = period.getDays();
 
-        String message;
+        StringBuilder message = new StringBuilder();
+        message.append("Faltam ");
 
-        if (days != 0 && months != 0 && years != 0) {
-            message = "Faltam " + years + " anos, " + months + " meses e " + days + " dias";
-        } else if (days != 0 && months != 0) {
-            message = "Faltam " + months + " meses e " + days + " dias";
-        } else if (days != 0 && years == 0) {
-            message = "Faltam " + days + " dias";
-        } else {
-            message = "Hoje é a data de entrega!";
+        if (years == 1) {
+            message.append(years);
+            message.append(" ano ");
+        } else if (years != 0 ) {
+            message.append(years);
+            message.append(" anos ");
         }
 
-        return message;
+        if (months == 1) {
+            message.append(months);
+            message.append(" mês ");
+        } else if (months != 0 ) {
+            message.append(months);
+            message.append(" meses ");
+        }
+
+        if (days == 1) {
+            message.append(days);
+            message.append(" dia");
+        } else if (days != 0 ) {
+            message.append(days);
+            message.append(" dias");
+        }
+
+        return message.toString();
     }
 }
