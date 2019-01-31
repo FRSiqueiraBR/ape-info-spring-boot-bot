@@ -14,4 +14,13 @@ public @Data class User {
     private String chatId;
     @Column(name = "name")
     private String name;
+
+    public User() {
+    }
+
+    public User(String userId, String chatId, String name) {
+        this.userId = userId;
+        this.chatId = chatId;
+        this.name = name;
+    }
 }

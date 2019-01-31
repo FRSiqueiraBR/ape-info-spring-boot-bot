@@ -1,13 +1,16 @@
 package br.com.frsiqueira.apeinfospringbootbot.bot;
 
 import br.com.frsiqueira.apeinfospringbootbot.entity.Apartment;
+import br.com.frsiqueira.apeinfospringbootbot.entity.User;
 import br.com.frsiqueira.apeinfospringbootbot.service.ApartmentService;
+import br.com.frsiqueira.apeinfospringbootbot.service.UserService;
 import br.com.frsiqueira.apeinfospringbootbot.util.MessageUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
@@ -28,6 +31,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
 
     private final MessageUtil messageUtil;
     private final ApartmentService apartmentService;
+    private final UserService userService;
 
     @Value("${bot.token}")
     private String botToken;
@@ -36,9 +40,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     private String botName;
 
     @Autowired
-    public ApeInfoBot(MessageUtil messageUtil, ApartmentService apartmentService) {
+    public ApeInfoBot(MessageUtil messageUtil, ApartmentService apartmentService, UserService userService) {
         this.messageUtil = messageUtil;
         this.apartmentService = apartmentService;
+        this.userService = userService;
 
         this.getMainMenuKeyboard();
     }
@@ -51,8 +56,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 if (message.hasText() || message.hasLocation()) {
                     if (this.isRemainingDaysCommand(message.getText())) {
                         execute(this.onDaysRemainingChosen(message));
-                    } else if(this.isStartCommand(message.getText())) {
+                    } else if (this.isStartCommand(message.getText())) {
                         execute(this.onStartChosen(message));
+                    } else if (this.isAlertCommand(message.getText())) {
+                        execute(this.onAlertCommand(message));
                     }
                 }
             }
@@ -100,6 +107,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private SendMessage onDaysRemainingChosen(Message message) {
+        BotLogger.info(LOGTAG, "Pesquisando dias restantes...");
         return new SendMessage()
                 .enableMarkdown(true)
                 .setReplyToMessageId(message.getMessageId())
@@ -109,6 +117,8 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private SendMessage onStartChosen(Message message) {
+        this.saveUser(message.getFrom(), message.getChat());
+
         return new SendMessage()
                 .enableMarkdown(true)
                 .setReplyToMessageId(message.getMessageId())
@@ -117,12 +127,25 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 .setText("Bem vindo");
     }
 
+    private SendMessage onAlertCommand(Message message) {
+        return new SendMessage()
+                .enableMarkdown(true)
+                .setReplyToMessageId(message.getMessageId())
+                .setChatId(message.getChatId())
+                .setReplyMarkup(getMainMenuKeyboard())
+                .setText("Te avisaremos quando deverá ser feito o pagamento");
+    }
+
     private boolean isRemainingDaysCommand(String message) {
         return this.messageUtil.getMessage("options.days-remaining").equals(message);
     }
 
     private boolean isStartCommand(String message) {
         return this.messageUtil.getMessage("options.start").equals(message);
+    }
+
+    private boolean isAlertCommand(String message) {
+        return this.messageUtil.getMessage("options.alert").equals(message);
     }
 
     private String generateRemainingDaysToRelease(Period period) {
@@ -136,7 +159,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         if (years == 1) {
             message.append(years);
             message.append(" ano ");
-        } else if (years != 0 ) {
+        } else if (years != 0) {
             message.append(years);
             message.append(" anos ");
         }
@@ -144,7 +167,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         if (months == 1) {
             message.append(months);
             message.append(" mês ");
-        } else if (months != 0 ) {
+        } else if (months != 0) {
             message.append(months);
             message.append(" meses ");
         }
@@ -152,11 +175,25 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         if (days == 1) {
             message.append(days);
             message.append(" dia");
-        } else if (days != 0 ) {
+        } else if (days != 0) {
             message.append(days);
             message.append(" dias");
         }
 
         return message.toString();
+    }
+
+    private void saveUser(org.telegram.telegrambots.meta.api.objects.User from, Chat chat) {
+        try {
+            User user = new User(String.valueOf(chat.getId()), String.valueOf(from.getId()), from.getFirstName());
+
+            if (this.userService.findUser(String.valueOf(from.getId()), String.valueOf(chat.getId())) == null) {
+                this.userService.saveUser(user);
+            } else {
+                BotLogger.info(LOGTAG, "User já cadastrado");
+            }
+        } catch (Exception e) {
+            BotLogger.error(LOGTAG, e);
+        }
     }
 }
