@@ -1,7 +1,9 @@
 package br.com.frsiqueira.apeinfospringbootbot.bot;
 
+import br.com.frsiqueira.apeinfospringbootbot.entity.Alert;
 import br.com.frsiqueira.apeinfospringbootbot.entity.Apartment;
 import br.com.frsiqueira.apeinfospringbootbot.entity.User;
+import br.com.frsiqueira.apeinfospringbootbot.service.AlertService;
 import br.com.frsiqueira.apeinfospringbootbot.service.ApartmentService;
 import br.com.frsiqueira.apeinfospringbootbot.service.UserService;
 import br.com.frsiqueira.apeinfospringbootbot.util.MessageUtil;
@@ -24,6 +26,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 @Component
 public class ApeInfoBot extends TelegramLongPollingBot {
@@ -32,6 +35,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     private final MessageUtil messageUtil;
     private final ApartmentService apartmentService;
     private final UserService userService;
+    private final AlertService alertService;
 
     @Value("${bot.token}")
     private String botToken;
@@ -40,10 +44,11 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     private String botName;
 
     @Autowired
-    public ApeInfoBot(MessageUtil messageUtil, ApartmentService apartmentService, UserService userService) {
+    public ApeInfoBot(MessageUtil messageUtil, ApartmentService apartmentService, UserService userService, AlertService alertService) {
         this.messageUtil = messageUtil;
         this.apartmentService = apartmentService;
         this.userService = userService;
+        this.alertService = alertService;
 
         this.getMainMenuKeyboard();
     }
@@ -108,32 +113,29 @@ public class ApeInfoBot extends TelegramLongPollingBot {
 
     private SendMessage onDaysRemainingChosen(Message message) {
         BotLogger.info(LOGTAG, "Pesquisando dias restantes...");
-        return new SendMessage()
-                .enableMarkdown(true)
-                .setReplyToMessageId(message.getMessageId())
-                .setChatId(message.getChatId())
-                .setReplyMarkup(this.getMainMenuKeyboard())
-                .setText(this.generateRemainingDaysToRelease(this.remainingDays()));
+
+        return this.replyMessage(
+                message.getMessageId(),
+                message.getChatId(),
+                this.generateRemainingDaysToRelease(this.remainingDays()));
     }
 
     private SendMessage onStartChosen(Message message) {
         this.saveUser(message.getFrom(), message.getChat());
 
-        return new SendMessage()
-                .enableMarkdown(true)
-                .setReplyToMessageId(message.getMessageId())
-                .setChatId(message.getChatId())
-                .setReplyMarkup(getMainMenuKeyboard())
-                .setText("Bem vindo");
+        return this.replyMessage(
+                message.getMessageId(),
+                message.getChatId(),
+                "Bem vindo");
     }
 
     private SendMessage onAlertCommand(Message message) {
-        return new SendMessage()
-                .enableMarkdown(true)
-                .setReplyToMessageId(message.getMessageId())
-                .setChatId(message.getChatId())
-                .setReplyMarkup(getMainMenuKeyboard())
-                .setText("Te avisaremos quando deverá ser feito o pagamento");
+        this.saveAlert(message);
+
+        return this.replyMessage(
+                message.getMessageId(),
+                message.getChatId(),
+                "Te avisaremos quando deverá ser feito o pagamento");
     }
 
     private boolean isRemainingDaysCommand(String message) {
@@ -195,5 +197,30 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         } catch (Exception e) {
             BotLogger.error(LOGTAG, e);
         }
+    }
+
+    private void saveAlert(Message message) {
+        String userId = String.valueOf(message.getChatId());
+        String chatId = String.valueOf(message.getFrom().getId());
+
+        if (!this.alertAlreadySaved(userId, chatId)) {
+            User user = this.userService.findUser(userId, chatId);
+            this.alertService.save(new Alert(user));
+        }
+    }
+
+    private boolean alertAlreadySaved(String userId, String chatId) {
+        User user = this.userService.findUser(userId, chatId);
+
+        return !Objects.isNull(this.alertService.findByUser(user));
+    }
+
+    private SendMessage replyMessage(Integer messageId, Long chatId, String message) {
+        return new SendMessage()
+                .enableMarkdown(true)
+                .setReplyToMessageId(messageId)
+                .setChatId(chatId)
+                .setReplyMarkup(getMainMenuKeyboard())
+                .setText(message);
     }
 }
