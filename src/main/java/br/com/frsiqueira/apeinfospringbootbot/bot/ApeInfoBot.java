@@ -2,10 +2,9 @@ package br.com.frsiqueira.apeinfospringbootbot.bot;
 
 import br.com.frsiqueira.apeinfospringbootbot.entity.Alert;
 import br.com.frsiqueira.apeinfospringbootbot.entity.Apartment;
+import br.com.frsiqueira.apeinfospringbootbot.entity.Payment;
 import br.com.frsiqueira.apeinfospringbootbot.entity.User;
-import br.com.frsiqueira.apeinfospringbootbot.service.AlertService;
-import br.com.frsiqueira.apeinfospringbootbot.service.ApartmentService;
-import br.com.frsiqueira.apeinfospringbootbot.service.UserService;
+import br.com.frsiqueira.apeinfospringbootbot.service.*;
 import br.com.frsiqueira.apeinfospringbootbot.util.MessageUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +16,7 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 import org.telegram.telegrambots.meta.logging.BotLogger;
 
 import java.time.Instant;
@@ -36,6 +36,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     private final ApartmentService apartmentService;
     private final UserService userService;
     private final AlertService alertService;
+    private final PaymentService paymentService;
 
     @Value("${bot.token}")
     private String botToken;
@@ -44,13 +45,15 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     private String botName;
 
     @Autowired
-    public ApeInfoBot(MessageUtil messageUtil, ApartmentService apartmentService, UserService userService, AlertService alertService) {
+    public ApeInfoBot(MessageUtil messageUtil, ApartmentService apartmentService, UserService userService, AlertService alertService, PaymentService paymentService) {
         this.messageUtil = messageUtil;
         this.apartmentService = apartmentService;
         this.userService = userService;
         this.alertService = alertService;
+        this.paymentService = paymentService;
 
         this.getMainMenuKeyboard();
+        this.startAlertTimers();
     }
 
     @Override
@@ -97,6 +100,51 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         replyKeyboardMarkup.setKeyboard(keyboard);
 
         return replyKeyboardMarkup;
+    }
+
+    private void startAlertTimers() {
+        TimerExecutor.getInstance().startExecutionEveryDayAt(new CustomTimerTask("First day alert", -1) {
+            @Override
+            public void execute() {
+                sendAlerts();
+            }
+        }, 0, 0, 0);
+
+        TimerExecutor.getInstance().startExecutionEveryDayAt(new CustomTimerTask("Second day alert", -1) {
+            @Override
+            public void execute() {
+                sendAlerts();
+            }
+        }, 12, 0, 0);
+    }
+
+    private void sendAlerts() {
+        List<Alert> allAlerts = this.alertService.findAll();
+        for (Alert alert : allAlerts) {
+            synchronized (Thread.currentThread()) {
+                try {
+                    Thread.currentThread().wait(35);
+                } catch (InterruptedException e) {
+                    BotLogger.severe(LOGTAG, e);
+                }
+            }
+
+            List<Payment> payments = this.paymentService.findByPaidStatus(false);
+            SendMessage sendMessage = new SendMessage();
+            sendMessage.enableMarkdown(true);
+            sendMessage.setChatId(String.valueOf(alert.getUser().getId()));
+            sendMessage.setText("");
+            try {
+                execute(sendMessage);
+            } catch (TelegramApiRequestException e) {
+                BotLogger.warn(LOGTAG, e);
+                if (e.getApiResponse().contains("Can't access the chat") || e.getApiResponse().contains("Bot was blocked by the user")) {
+                    this.alertService.delete(alert);
+                }
+            } catch (Exception e) {
+                BotLogger.severe(LOGTAG, e);
+            }
+        }
     }
 
     private Period remainingDays() {
