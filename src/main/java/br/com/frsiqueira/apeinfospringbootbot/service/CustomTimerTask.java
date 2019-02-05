@@ -1,8 +1,8 @@
 package br.com.frsiqueira.apeinfospringbootbot.service;
 
 public abstract class CustomTimerTask {
-    private String taskName = ""; ///< Task name
-    private int times = 1;
+    private String taskName;
+    private int times;
 
 
     public CustomTimerTask(String taskName, int times) {

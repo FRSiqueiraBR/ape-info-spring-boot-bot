@@ -5,6 +5,7 @@ import org.telegram.telegrambots.meta.logging.BotLogger;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +37,7 @@ public class TimerExecutor {
 
     public void startExecutionEveryDayAt(CustomTimerTask task, int targetHour, int targetMin, int targetSec) {
         BotLogger.warn(LOGTAG, "Posting new task - " + task.getTaskName());
+
         final Runnable taskWrapper = () -> {
             try {
                 task.execute();
@@ -46,13 +48,13 @@ public class TimerExecutor {
             }
         };
         if (task.getTimes() != 0) {
-            final long delay = computNextDilay(targetHour, targetMin, targetSec);
+            final long delay = computeNextDelay(targetHour, targetMin, targetSec);
             executorService.schedule(taskWrapper, delay, TimeUnit.SECONDS);
         }
     }
 
-    private long computNextDilay(int targetHour, int targetMin, int targetSec) {
-        final LocalDateTime localNow = LocalDateTime.now(Clock.systemUTC());
+    private long computeNextDelay(int targetHour, int targetMin, int targetSec) {
+        final LocalDateTime localNow = LocalDateTime.now(Clock.system(ZoneId.of("America/Sao_Paulo")));
         LocalDateTime localNextTarget = localNow.withHour(targetHour).withMinute(targetMin).withSecond(targetSec);
         while (localNow.compareTo(localNextTarget.minusSeconds(1)) > 0) {
             localNextTarget = localNextTarget.plusDays(1);

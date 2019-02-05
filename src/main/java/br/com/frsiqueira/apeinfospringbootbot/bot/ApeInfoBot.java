@@ -28,18 +28,17 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class ApeInfoBot extends TelegramLongPollingBot {
     private static final String LOGTAG = "APEINFOBOT";
-    private SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/YYYY");
-
     private final MessageUtil messageUtil;
     private final ApartmentService apartmentService;
     private final UserService userService;
     private final AlertService alertService;
     private final PaymentService paymentService;
-
+    private final SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/YYYY");
     @Value("${bot.token}")
     private String botToken;
 
@@ -105,19 +104,12 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private void startAlertTimers() {
-        TimerExecutor.getInstance().startExecutionEveryDayAt(new CustomTimerTask("First day alert", -1) {
+        TimerExecutor.getInstance().startExecutionEveryDayAt(new CustomTimerTask("Alert", -1) {
             @Override
             public void execute() {
                 sendAlerts();
             }
-        }, 0, 0, 0);
-
-        TimerExecutor.getInstance().startExecutionEveryDayAt(new CustomTimerTask("Second day alert", -1) {
-            @Override
-            public void execute() {
-                sendAlerts();
-            }
-        }, 12, 0, 0);
+        }, 18, 0, 0);
     }
 
     private void sendAlerts() {
@@ -135,15 +127,18 @@ public class ApeInfoBot extends TelegramLongPollingBot {
             }
 
             try {
-                Payment payment = this.findNextPayment();
+                Payment nextPayment = this.findNextPayment();
                 Long chatId = Long.valueOf(alert.getUser().getChatId());
-                String replyMessage = createReplyMessageAlert(payment);
 
-                SendMessage sendMessage = replyMessage(null, chatId, replyMessage);
-                execute(sendMessage);
+                if (this.isOneDayBeforePayment(nextPayment)) {
+                    String replyMessage = createReplyMessageAlert(nextPayment);
+
+                    SendMessage sendMessage = replyMessage(null, chatId, replyMessage);
+                    execute(sendMessage);
+                }
             } catch (TelegramApiRequestException e) {
                 BotLogger.warn(LOGTAG, e);
-                if (e.getApiResponse().contains("Can't access the chat") || e.getApiResponse().contains("Bot was blocked by the user")) {
+                if (this.isChatBlockedOrDeleted(e)) {
                     this.alertService.delete(alert);
                 }
             } catch (Exception e) {
@@ -289,5 +284,23 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         } else {
             return this.messageUtil.getMessage("alert.reply-message.error");
         }
+    }
+
+    private boolean isChatBlockedOrDeleted(TelegramApiRequestException error) {
+        return error.getApiResponse().contains("alert.chat-not-found") ||
+                error.getApiResponse().contains("alert.chat-blocked-deleted");
+    }
+
+    private boolean isOneDayBeforePayment(Payment payment) {
+        Date paymentDate = payment.getDate();
+        Date today = new Date();
+        long differenceInDays = this.getDateDiff(paymentDate, today);
+
+        return paymentDate.after(today) || differenceInDays >= 1;
+    }
+
+    private long getDateDiff(Date date1, Date date2) {
+        long diffInMillis = date2.getTime() - date1.getTime();
+        return TimeUnit.DAYS.convert(diffInMillis, TimeUnit.MILLISECONDS);
     }
 }
