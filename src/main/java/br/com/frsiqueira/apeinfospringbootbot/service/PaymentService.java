@@ -18,6 +18,6 @@ public class PaymentService {
     }
 
     public List<Payment> findByPaidStatus(boolean paidStatus) {
-        return this.paymentRepository.findByPaid(paidStatus);
+        return this.paymentRepository.findByPaidOrderByDate(paidStatus);
     }
 }

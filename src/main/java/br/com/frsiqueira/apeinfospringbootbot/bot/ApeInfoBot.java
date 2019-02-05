@@ -19,6 +19,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 import org.telegram.telegrambots.meta.logging.BotLogger;
 
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
@@ -31,6 +32,7 @@ import java.util.Objects;
 @Component
 public class ApeInfoBot extends TelegramLongPollingBot {
     private static final String LOGTAG = "APEINFOBOT";
+    private SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/YYYY");
 
     private final MessageUtil messageUtil;
     private final ApartmentService apartmentService;
@@ -119,7 +121,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private void sendAlerts() {
+        BotLogger.info(LOGTAG, this.messageUtil.getMessage("alert.info"));
+
         List<Alert> allAlerts = this.alertService.findAll();
+
         for (Alert alert : allAlerts) {
             synchronized (Thread.currentThread()) {
                 try {
@@ -129,12 +134,12 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 }
             }
 
-            List<Payment> payments = this.paymentService.findByPaidStatus(false);
-            SendMessage sendMessage = new SendMessage();
-            sendMessage.enableMarkdown(true);
-            sendMessage.setChatId(String.valueOf(alert.getUser().getId()));
-            sendMessage.setText("");
             try {
+                Payment payment = this.findNextPayment();
+                Long chatId = Long.valueOf(alert.getUser().getChatId());
+                String replyMessage = createReplyMessageAlert(payment);
+
+                SendMessage sendMessage = replyMessage(null, chatId, replyMessage);
                 execute(sendMessage);
             } catch (TelegramApiRequestException e) {
                 BotLogger.warn(LOGTAG, e);
@@ -160,7 +165,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private SendMessage onDaysRemainingChosen(Message message) {
-        BotLogger.info(LOGTAG, "Pesquisando dias restantes...");
+        BotLogger.info(LOGTAG, this.messageUtil.getMessage("days-remaining.info"));
 
         return this.replyMessage(
                 message.getMessageId(),
@@ -174,16 +179,15 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         return this.replyMessage(
                 message.getMessageId(),
                 message.getChatId(),
-                "Bem vindo");
+                this.messageUtil.getMessage("start.welcome"));
     }
 
     private SendMessage onAlertCommand(Message message) {
         this.saveAlert(message);
-
         return this.replyMessage(
                 message.getMessageId(),
                 message.getChatId(),
-                "Te avisaremos quando deverá ser feito o pagamento");
+                this.messageUtil.getMessage("alert.reply-message"));
     }
 
     private boolean isRemainingDaysCommand(String message) {
@@ -240,7 +244,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
             if (this.userService.findUser(String.valueOf(from.getId()), String.valueOf(chat.getId())) == null) {
                 this.userService.saveUser(user);
             } else {
-                BotLogger.info(LOGTAG, "User já cadastrado");
+                BotLogger.info(LOGTAG, this.messageUtil.getMessage("user.info.already-created"));
             }
         } catch (Exception e) {
             BotLogger.error(LOGTAG, e);
@@ -248,8 +252,8 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private void saveAlert(Message message) {
-        String userId = String.valueOf(message.getChatId());
-        String chatId = String.valueOf(message.getFrom().getId());
+        String userId = String.valueOf(message.getFrom().getId());
+        String chatId = String.valueOf(message.getChatId());
 
         if (!this.alertAlreadySaved(userId, chatId)) {
             User user = this.userService.findUser(userId, chatId);
@@ -270,5 +274,20 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 .setChatId(chatId)
                 .setReplyMarkup(getMainMenuKeyboard())
                 .setText(message);
+    }
+
+    private Payment findNextPayment() {
+        return this.paymentService.findByPaidStatus(false)
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String createReplyMessageAlert(Payment payment) {
+        if (Objects.nonNull(payment) && Objects.nonNull(payment.getDate())) {
+            return this.messageUtil.getMessage("alert.reply-message.success") + sdf.format(payment.getDate());
+        } else {
+            return this.messageUtil.getMessage("alert.reply-message.error");
+        }
     }
 }

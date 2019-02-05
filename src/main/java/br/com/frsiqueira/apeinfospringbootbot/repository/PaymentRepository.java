@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface PaymentRepository extends CrudRepository<Payment, Integer> {
 
-    List<Payment> findByPaid(boolean paid);
+    List<Payment> findByPaidOrderByDate(boolean paid);
 }

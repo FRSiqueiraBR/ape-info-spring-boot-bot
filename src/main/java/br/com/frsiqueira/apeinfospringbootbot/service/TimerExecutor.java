@@ -35,7 +35,7 @@ public class TimerExecutor {
     }
 
     public void startExecutionEveryDayAt(CustomTimerTask task, int targetHour, int targetMin, int targetSec) {
-        BotLogger.warn(LOGTAG, "Posting new task" + task.getTaskName());
+        BotLogger.warn(LOGTAG, "Posting new task - " + task.getTaskName());
         final Runnable taskWrapper = () -> {
             try {
                 task.execute();
