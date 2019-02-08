@@ -6,6 +6,8 @@ import br.com.frsiqueira.apeinfospringbootbot.repository.AlertRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class AlertService {
 
@@ -22,5 +24,13 @@ public class AlertService {
 
     public Alert findByUser(User user) {
         return this.alertRepository.findByUser(user);
+    }
+
+    public List<Alert> findAll() {
+        return this.alertRepository.findAll();
+    }
+
+    public void delete(Alert alert) {
+        this.alertRepository.delete(alert);
     }
 }

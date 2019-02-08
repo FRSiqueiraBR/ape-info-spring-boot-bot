@@ -2,7 +2,7 @@ REPLACE INTO apartment(name, address, release_date) VALUES('LIVING CLÁSSICO', '
 
 REPLACE INTO payment(parcel, date, type, amount, paid) VALUES(1, '2018-11-15', 'parcel', '3011.41', true);
 REPLACE INTO payment(parcel, date, type, amount, paid) VALUES(2, '2018-12-15', 'parcel', '3021.95', true);
-REPLACE INTO payment(parcel, date, type, amount, paid) VALUES(3, '2018-01-15', 'parcel', '3025.88', false);
+REPLACE INTO payment(parcel, date, type, amount, paid) VALUES(3, '2019-01-15', 'parcel', '3025.88', true);
 REPLACE INTO payment(parcel, date, type, amount, paid) VALUES(4, '2019-02-15', 'parcel', '3025.88', false);
 REPLACE INTO payment(parcel, date, type, amount, paid) VALUES(5, '2019-03-15', 'parcel', '3025.88', false);
 REPLACE INTO payment(parcel, date, type, amount, paid) VALUES(6, '2019-04-15', 'parcel', '3025.88', false);

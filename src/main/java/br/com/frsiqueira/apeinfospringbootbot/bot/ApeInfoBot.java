@@ -2,10 +2,9 @@ package br.com.frsiqueira.apeinfospringbootbot.bot;
 
 import br.com.frsiqueira.apeinfospringbootbot.entity.Alert;
 import br.com.frsiqueira.apeinfospringbootbot.entity.Apartment;
+import br.com.frsiqueira.apeinfospringbootbot.entity.Payment;
 import br.com.frsiqueira.apeinfospringbootbot.entity.User;
-import br.com.frsiqueira.apeinfospringbootbot.service.AlertService;
-import br.com.frsiqueira.apeinfospringbootbot.service.ApartmentService;
-import br.com.frsiqueira.apeinfospringbootbot.service.UserService;
+import br.com.frsiqueira.apeinfospringbootbot.service.*;
 import br.com.frsiqueira.apeinfospringbootbot.util.MessageUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,8 +16,10 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 import org.telegram.telegrambots.meta.logging.BotLogger;
 
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
@@ -27,16 +28,17 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class ApeInfoBot extends TelegramLongPollingBot {
     private static final String LOGTAG = "APEINFOBOT";
-
     private final MessageUtil messageUtil;
     private final ApartmentService apartmentService;
     private final UserService userService;
     private final AlertService alertService;
-
+    private final PaymentService paymentService;
+    private final SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/YYYY");
     @Value("${bot.token}")
     private String botToken;
 
@@ -44,13 +46,15 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     private String botName;
 
     @Autowired
-    public ApeInfoBot(MessageUtil messageUtil, ApartmentService apartmentService, UserService userService, AlertService alertService) {
+    public ApeInfoBot(MessageUtil messageUtil, ApartmentService apartmentService, UserService userService, AlertService alertService, PaymentService paymentService) {
         this.messageUtil = messageUtil;
         this.apartmentService = apartmentService;
         this.userService = userService;
         this.alertService = alertService;
+        this.paymentService = paymentService;
 
         this.getMainMenuKeyboard();
+        this.startAlertTimers();
     }
 
     @Override
@@ -99,6 +103,50 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         return replyKeyboardMarkup;
     }
 
+    private void startAlertTimers() {
+        TimerExecutor.getInstance().startExecutionEveryDayAt(new CustomTimerTask("Alert", -1) {
+            @Override
+            public void execute() {
+                sendAlerts();
+            }
+        }, 18, 0, 0);
+    }
+
+    private void sendAlerts() {
+        BotLogger.info(LOGTAG, this.messageUtil.getMessage("alert.info"));
+
+        List<Alert> allAlerts = this.alertService.findAll();
+
+        for (Alert alert : allAlerts) {
+            synchronized (Thread.currentThread()) {
+                try {
+                    Thread.currentThread().wait(35);
+                } catch (InterruptedException e) {
+                    BotLogger.severe(LOGTAG, e);
+                }
+            }
+
+            try {
+                Payment nextPayment = this.findNextPayment();
+                Long chatId = Long.valueOf(alert.getUser().getChatId());
+
+                if (this.isOneDayBeforePayment(nextPayment)) {
+                    String replyMessage = createReplyMessageAlert(nextPayment);
+
+                    SendMessage sendMessage = replyMessage(null, chatId, replyMessage);
+                    execute(sendMessage);
+                }
+            } catch (TelegramApiRequestException e) {
+                BotLogger.warn(LOGTAG, e);
+                if (this.isChatBlockedOrDeleted(e)) {
+                    this.alertService.delete(alert);
+                }
+            } catch (Exception e) {
+                BotLogger.severe(LOGTAG, e);
+            }
+        }
+    }
+
     private Period remainingDays() {
         Apartment apartment = this.apartmentService.findApartment();
         Date releaseDate = apartment.getReleaseDate();
@@ -112,7 +160,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private SendMessage onDaysRemainingChosen(Message message) {
-        BotLogger.info(LOGTAG, "Pesquisando dias restantes...");
+        BotLogger.info(LOGTAG, this.messageUtil.getMessage("days-remaining.info"));
 
         return this.replyMessage(
                 message.getMessageId(),
@@ -126,16 +174,15 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         return this.replyMessage(
                 message.getMessageId(),
                 message.getChatId(),
-                "Bem vindo");
+                this.messageUtil.getMessage("start.welcome"));
     }
 
     private SendMessage onAlertCommand(Message message) {
         this.saveAlert(message);
-
         return this.replyMessage(
                 message.getMessageId(),
                 message.getChatId(),
-                "Te avisaremos quando deverá ser feito o pagamento");
+                this.messageUtil.getMessage("alert.reply-message"));
     }
 
     private boolean isRemainingDaysCommand(String message) {
@@ -192,7 +239,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
             if (this.userService.findUser(String.valueOf(from.getId()), String.valueOf(chat.getId())) == null) {
                 this.userService.saveUser(user);
             } else {
-                BotLogger.info(LOGTAG, "User já cadastrado");
+                BotLogger.info(LOGTAG, this.messageUtil.getMessage("user.info.already-created"));
             }
         } catch (Exception e) {
             BotLogger.error(LOGTAG, e);
@@ -200,8 +247,8 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private void saveAlert(Message message) {
-        String userId = String.valueOf(message.getChatId());
-        String chatId = String.valueOf(message.getFrom().getId());
+        String userId = String.valueOf(message.getFrom().getId());
+        String chatId = String.valueOf(message.getChatId());
 
         if (!this.alertAlreadySaved(userId, chatId)) {
             User user = this.userService.findUser(userId, chatId);
@@ -222,5 +269,38 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 .setChatId(chatId)
                 .setReplyMarkup(getMainMenuKeyboard())
                 .setText(message);
+    }
+
+    private Payment findNextPayment() {
+        return this.paymentService.findByPaidStatus(false)
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String createReplyMessageAlert(Payment payment) {
+        if (Objects.nonNull(payment) && Objects.nonNull(payment.getDate())) {
+            return this.messageUtil.getMessage("alert.reply-message.success") + sdf.format(payment.getDate());
+        } else {
+            return this.messageUtil.getMessage("alert.reply-message.error");
+        }
+    }
+
+    private boolean isChatBlockedOrDeleted(TelegramApiRequestException error) {
+        return error.getApiResponse().contains("alert.chat-not-found") ||
+                error.getApiResponse().contains("alert.chat-blocked-deleted");
+    }
+
+    private boolean isOneDayBeforePayment(Payment payment) {
+        Date paymentDate = payment.getDate();
+        Date today = new Date();
+        long differenceInDays = this.getDateDiff(paymentDate, today);
+
+        return paymentDate.after(today) || differenceInDays >= 1;
+    }
+
+    private long getDateDiff(Date date1, Date date2) {
+        long diffInMillis = date2.getTime() - date1.getTime();
+        return TimeUnit.DAYS.convert(diffInMillis, TimeUnit.MILLISECONDS);
     }
 }
