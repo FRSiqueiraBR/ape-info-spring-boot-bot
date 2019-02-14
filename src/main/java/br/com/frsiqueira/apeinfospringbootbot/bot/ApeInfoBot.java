@@ -29,6 +29,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Component
 public class ApeInfoBot extends TelegramLongPollingBot {
@@ -109,7 +110,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
             public void execute() {
                 sendAlerts();
             }
-        }, 18, 0, 0);
+        }, 8, 0, 0);
     }
 
     private void sendAlerts() {
@@ -130,7 +131,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 Payment nextPayment = this.findNextPayment();
                 Long chatId = Long.valueOf(alert.getUser().getChatId());
 
-                if (this.isOneDayBeforePayment(nextPayment)) {
+                if (this.isOneDayBeforeOrDayPayment(nextPayment)) {
                     String replyMessage = createReplyMessageAlert(nextPayment);
 
                     SendMessage sendMessage = replyMessage(null, chatId, replyMessage);
@@ -291,12 +292,12 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 error.getApiResponse().contains("alert.chat-blocked-deleted");
     }
 
-    private boolean isOneDayBeforePayment(Payment payment) {
+    private boolean isOneDayBeforeOrDayPayment(Payment payment) {
         Date paymentDate = payment.getDate();
         Date today = new Date();
         long differenceInDays = this.getDateDiff(paymentDate, today);
 
-        return paymentDate.after(today) || differenceInDays >= 1;
+        return differenceInDays >= 1 || differenceInDays == 0;
     }
 
     private long getDateDiff(Date date1, Date date2) {
