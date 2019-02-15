@@ -68,9 +68,9 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                     } else if (this.isStartCommand(message.getText())) {
                         execute(this.onStartChosen(message));
                     } else if (this.isAlertCommand(message.getText())) {
-                        execute(this.onAlertCommand(message));
-                    } else if (this.isMarkAsPaid(message.getText())) {
-                        execute(this.onMarkAsPaid(message));
+                        execute(this.onAlertChosen(message));
+                    } else if (this.isMarkAsPaidCommand(message.getText())) {
+                        execute(this.onMarkAsPaidChosen(message));
                     }
                 }
             }
@@ -179,7 +179,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 this.messageUtil.getMessage("reply-message.welcome"));
     }
 
-    private SendMessage onAlertCommand(Message message) {
+    private SendMessage onAlertChosen(Message message) {
         this.saveAlert(message);
         return this.replyMessage(
                 message.getMessageId(),
@@ -187,7 +187,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                 this.messageUtil.getMessage("reply-message.alert"));
     }
 
-    private SendMessage onMarkAsPaid(Message message) {
+    private SendMessage onMarkAsPaidChosen(Message message) {
         try {
             this.saveNextPaymentAsPaid();
             return this.replyMessage(
@@ -216,7 +216,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         return this.messageUtil.getMessage("options.alert").equals(message);
     }
 
-    private boolean isMarkAsPaid(String message) {
+    private boolean isMarkAsPaidCommand(String message) {
         return this.messageUtil.getMessage("options.mark-as-paid").equals(message);
     }
 
