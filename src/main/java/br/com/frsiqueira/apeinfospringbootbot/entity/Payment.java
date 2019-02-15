@@ -21,4 +21,16 @@ public @Data class Payment {
     private BigDecimal amount;
     @Column(name = "paid")
     private boolean paid;
+
+    public Payment() {
+    }
+
+    public Payment(Integer id, Integer parcel, Date date, String type, BigDecimal amount, boolean paid) {
+        this.id = id;
+        this.parcel = parcel;
+        this.date = date;
+        this.type = type;
+        this.amount = amount;
+        this.paid = paid;
+    }
 }

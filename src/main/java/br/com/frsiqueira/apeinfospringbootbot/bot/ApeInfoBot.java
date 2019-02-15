@@ -29,7 +29,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Component
 public class ApeInfoBot extends TelegramLongPollingBot {
@@ -70,6 +69,8 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                         execute(this.onStartChosen(message));
                     } else if (this.isAlertCommand(message.getText())) {
                         execute(this.onAlertCommand(message));
+                    } else if (this.isMarkAsPaid(message.getText())) {
+                        execute(this.onMarkAsPaid(message));
                     }
                 }
             }
@@ -98,7 +99,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         KeyboardRow keyboardFirstRow = new KeyboardRow();
         keyboardFirstRow.add(this.messageUtil.getMessage("options.days-remaining"));
         keyboardFirstRow.add(this.messageUtil.getMessage("options.alert"));
+        KeyboardRow keyboardSecondRow = new KeyboardRow();
+        keyboardSecondRow.add(this.messageUtil.getMessage("options.mark-as-paid"));
         keyboard.add(keyboardFirstRow);
+        keyboard.add(keyboardSecondRow);
         replyKeyboardMarkup.setKeyboard(keyboard);
 
         return replyKeyboardMarkup;
@@ -161,8 +165,6 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private SendMessage onDaysRemainingChosen(Message message) {
-        BotLogger.info(LOGTAG, this.messageUtil.getMessage("days-remaining.info"));
-
         return this.replyMessage(
                 message.getMessageId(),
                 message.getChatId(),
@@ -171,11 +173,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
 
     private SendMessage onStartChosen(Message message) {
         this.saveUser(message.getFrom(), message.getChat());
-
         return this.replyMessage(
                 message.getMessageId(),
                 message.getChatId(),
-                this.messageUtil.getMessage("start.welcome"));
+                this.messageUtil.getMessage("reply-message.welcome"));
     }
 
     private SendMessage onAlertCommand(Message message) {
@@ -183,7 +184,24 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         return this.replyMessage(
                 message.getMessageId(),
                 message.getChatId(),
-                this.messageUtil.getMessage("alert.reply-message"));
+                this.messageUtil.getMessage("reply-message.alert"));
+    }
+
+    private SendMessage onMarkAsPaid(Message message) {
+        try {
+            this.saveNextPaymentAsPaid();
+            return this.replyMessage(
+                    message.getMessageId(),
+                    message.getChatId(),
+                    this.messageUtil.getMessage("reply-message.mark-as-paid"));
+
+        } catch (Exception e) {
+            BotLogger.error(LOGTAG, e);
+            return this.replyMessage(
+                    message.getMessageId(),
+                    message.getChatId(),
+                    this.messageUtil.getMessage("reply-message.mark-as-paid.error"));
+        }
     }
 
     private boolean isRemainingDaysCommand(String message) {
@@ -196,6 +214,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
 
     private boolean isAlertCommand(String message) {
         return this.messageUtil.getMessage("options.alert").equals(message);
+    }
+
+    private boolean isMarkAsPaid(String message) {
+        return this.messageUtil.getMessage("options.mark-as-paid").equals(message);
     }
 
     private String generateRemainingDaysToRelease(Period period) {
@@ -255,6 +277,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
             User user = this.userService.findUser(userId, chatId);
             this.alertService.save(new Alert(user));
         }
+    }
+
+    private void saveNextPaymentAsPaid() {
+        this.paymentService.saveNextPaymentAsPaid();
     }
 
     private boolean alertAlreadySaved(String userId, String chatId) {
