@@ -168,42 +168,42 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     }
 
     private SendMessage onDaysRemainingChosen(Message message) {
-        return this.replyMessage(
-                message.getMessageId(),
-                message.getChatId(),
-                this.generateRemainingDaysToRelease(this.remainingDays()));
+        return this.replyMessage(message.getMessageId(), message.getChatId(), this.generateRemainingDaysToRelease(this.remainingDays()));
     }
 
     private SendMessage onStartChosen(Message message) {
         this.saveUser(message.getFrom(), message.getChat());
-        return this.replyMessage(
-                message.getMessageId(),
-                message.getChatId(),
-                this.messageUtil.getMessage("reply-message.welcome"));
+
+        String replyMessage = this.messageUtil.getMessage("reply-message.welcome");
+        return this.replyMessage(message.getMessageId(), message.getChatId(), replyMessage);
     }
 
     private SendMessage onAlertChosen(Message message) {
-        this.saveAlert(message);
-        return this.replyMessage(
-                message.getMessageId(),
-                message.getChatId(),
-                this.messageUtil.getMessage("reply-message.alert"));
+        try {
+            this.saveAlert(message);
+            String replyMessage = this.messageUtil.getMessage("reply-message.alert");
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), replyMessage);
+        } catch (Exception e) {
+            BotLogger.error(LOGTAG, e);
+            String errorMessage = this.messageUtil.getMessage("reply-message.alert.error");
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), errorMessage);
+        }
     }
 
     private SendMessage onMarkAsPaidChosen(Message message) {
         try {
-            this.saveNextPaymentAsPaid();
-            return this.replyMessage(
-                    message.getMessageId(),
-                    message.getChatId(),
-                    this.messageUtil.getMessage("reply-message.mark-as-paid"));
+            Payment payment = this.saveNextPaymentAsPaid();
+            Object[] params = new Object[]{payment.getParcel().toString(), sdf.format(payment.getDate())};
+            String replyMessage = this.messageUtil.getMessage("reply-message.mark-as-paid", params);
 
+            return this.replyMessage(message.getMessageId(), message.getChatId(), replyMessage);
         } catch (Exception e) {
             BotLogger.error(LOGTAG, e);
-            return this.replyMessage(
-                    message.getMessageId(),
-                    message.getChatId(),
-                    this.messageUtil.getMessage("reply-message.mark-as-paid.error"));
+            String errorMessage = this.messageUtil.getMessage("reply-message.mark-as-paid.error");
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), errorMessage);
         }
     }
 
@@ -301,8 +301,8 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         }
     }
 
-    private void saveNextPaymentAsPaid() {
-        this.paymentService.saveNextPaymentAsPaid();
+    private Payment saveNextPaymentAsPaid() {
+        return this.paymentService.saveNextPaymentAsPaid();
     }
 
     private boolean alertAlreadySaved(String userId, String chatId) {
