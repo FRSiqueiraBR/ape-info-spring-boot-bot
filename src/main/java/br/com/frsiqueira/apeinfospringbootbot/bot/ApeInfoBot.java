@@ -71,6 +71,8 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                         execute(this.onAlertChosen(message));
                     } else if (this.isMarkAsPaidCommand(message.getText())) {
                         execute(this.onMarkAsPaidChosen(message));
+                    } else if (this.isNextPaymentCommand(message.getText())) {
+                        execute(this.onNextPaymentChosen(message));
                     }
                 }
             }
@@ -101,6 +103,7 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         keyboardFirstRow.add(this.messageUtil.getMessage("options.alert"));
         KeyboardRow keyboardSecondRow = new KeyboardRow();
         keyboardSecondRow.add(this.messageUtil.getMessage("options.mark-as-paid"));
+        keyboardSecondRow.add(this.messageUtil.getMessage("options.next-payment"));
         keyboard.add(keyboardFirstRow);
         keyboard.add(keyboardSecondRow);
         replyKeyboardMarkup.setKeyboard(keyboard);
@@ -204,6 +207,21 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         }
     }
 
+    private SendMessage onNextPaymentChosen(Message message) {
+        try {
+            Payment payment = this.paymentService.findNextPaymentByPaidStatus(false);
+            Object[] params = new Object[]{payment.getParcel().toString(), sdf.format(payment.getDate())};
+            String replyMessage = this.messageUtil.getMessage("reply-message.next-payment", params);
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), replyMessage);
+        } catch (Exception e) {
+            BotLogger.error(LOGTAG, e);
+            String errorMessage = this.messageUtil.getMessage("reply-message.next-payment.error");
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), errorMessage);
+        }
+    }
+
     private boolean isRemainingDaysCommand(String message) {
         return this.messageUtil.getMessage("options.days-remaining").equals(message);
     }
@@ -218,6 +236,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
 
     private boolean isMarkAsPaidCommand(String message) {
         return this.messageUtil.getMessage("options.mark-as-paid").equals(message);
+    }
+
+    private boolean isNextPaymentCommand(String message) {
+        return this.messageUtil.getMessage("options.next-payment").equals(message);
     }
 
     private String generateRemainingDaysToRelease(Period period) {

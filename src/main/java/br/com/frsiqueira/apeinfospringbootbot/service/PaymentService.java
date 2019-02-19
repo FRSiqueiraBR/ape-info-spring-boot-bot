@@ -21,6 +21,13 @@ public class PaymentService {
         return this.paymentRepository.findByPaidOrderByDate(paidStatus);
     }
 
+    public Payment findNextPaymentByPaidStatus(boolean paidStatus) {
+        return this.paymentRepository.findByPaidOrderByDate(false)
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
     public Payment saveNextPaymentAsPaid() {
         Payment paymentPaidTrue = this.paymentRepository.findByPaidOrderByDate(false)
                 .stream()
