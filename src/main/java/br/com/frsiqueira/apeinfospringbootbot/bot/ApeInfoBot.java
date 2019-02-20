@@ -29,6 +29,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Component
 public class ApeInfoBot extends TelegramLongPollingBot {
@@ -73,6 +74,10 @@ public class ApeInfoBot extends TelegramLongPollingBot {
                         execute(this.onMarkAsPaidChosen(message));
                     } else if (this.isNextPaymentCommand(message.getText())) {
                         execute(this.onNextPaymentChosen(message));
+                    } else if (this.isListNotPaid(message.getText())) {
+                        execute(this.onListNotPaid(message));
+                    } else if (this.isListPaid(message.getText())) {
+                        execute(this.onListPaid(message));
                     }
                 }
             }
@@ -104,8 +109,12 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         KeyboardRow keyboardSecondRow = new KeyboardRow();
         keyboardSecondRow.add(this.messageUtil.getMessage("options.mark-as-paid"));
         keyboardSecondRow.add(this.messageUtil.getMessage("options.next-payment"));
+        KeyboardRow keyboardThirdRow = new KeyboardRow();
+        keyboardThirdRow.add(this.messageUtil.getMessage("options.list-not-paid"));
+        keyboardThirdRow.add(this.messageUtil.getMessage("options.list-paid"));
         keyboard.add(keyboardFirstRow);
         keyboard.add(keyboardSecondRow);
+        keyboard.add(keyboardThirdRow);
         replyKeyboardMarkup.setKeyboard(keyboard);
 
         return replyKeyboardMarkup;
@@ -222,6 +231,40 @@ public class ApeInfoBot extends TelegramLongPollingBot {
         }
     }
 
+    private SendMessage onListNotPaid(Message message) {
+        try{
+            String replyMessagePaymentTemplate = "reply-message.list-not-paid";
+            String replyMessageEmptyListTemplate = "reply-message.all-paid";
+            List<Payment> payments = this.paymentService.findByPaidStatus(false);
+
+            String replyMessage = this.replyMessagePaymentList(replyMessagePaymentTemplate, replyMessageEmptyListTemplate, payments);
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), replyMessage);
+        } catch (Exception e) {
+            BotLogger.error(LOGTAG, e);
+            String errorMessage = this.messageUtil.getMessage("reply-message.list-not-paid.error");
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), errorMessage);
+        }
+    }
+
+    private SendMessage onListPaid(Message message) {
+        try {
+            String replyMessagePaymentTemplate = "reply-message.list-paid";
+            String replyMessageEmptyListTemplate = "reply-message.all-not-paid";
+            List<Payment> payments = this.paymentService.findByPaidStatus(true);
+
+            String replyMessage = this.replyMessagePaymentList(replyMessagePaymentTemplate, replyMessageEmptyListTemplate, payments);
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), replyMessage);
+        } catch (Exception e) {
+            BotLogger.error(LOGTAG, e);
+            String errorMessage = this.messageUtil.getMessage("reply-message.list-paid.error");
+
+            return this.replyMessage(message.getMessageId(), message.getChatId(), errorMessage);
+        }
+    }
+
     private boolean isRemainingDaysCommand(String message) {
         return this.messageUtil.getMessage("options.days-remaining").equals(message);
     }
@@ -240,6 +283,14 @@ public class ApeInfoBot extends TelegramLongPollingBot {
 
     private boolean isNextPaymentCommand(String message) {
         return this.messageUtil.getMessage("options.next-payment").equals(message);
+    }
+
+    private boolean isListNotPaid(String message) {
+        return this.messageUtil.getMessage("options.list-not-paid").equals(message);
+    }
+
+    private boolean isListPaid(String message) {
+        return this.messageUtil.getMessage("options.list-paid").equals(message);
     }
 
     private String generateRemainingDaysToRelease(Period period) {
@@ -351,5 +402,26 @@ public class ApeInfoBot extends TelegramLongPollingBot {
     private long getDateDiff(Date date1, Date date2) {
         long diffInMillis = date2.getTime() - date1.getTime();
         return TimeUnit.DAYS.convert(diffInMillis, TimeUnit.MILLISECONDS);
+    }
+
+    private String replyMessagePaymentList(String replyMessage, String replyMessageEmptyList, List<Payment> payments) {
+        if (Objects.nonNull(payments)) {
+            return payments.stream()
+                    .map(payment -> {
+                        Object[] params = new Object[]{formatParcel(payment), sdf.format(payment.getDate())};
+                        return messageUtil.getMessage(replyMessage, params);
+                    })
+                    .collect(Collectors.joining("\n"));
+        } else {
+            return this.messageUtil.getMessage(replyMessageEmptyList);
+        }
+    }
+
+    private String formatParcel(Payment payment) {
+        if (Objects.nonNull(payment.getParcel())) {
+            return payment.getParcel().toString();
+        } else {
+            return this.messageUtil.getMessage("payment.parcel.unique");
+        }
     }
 }
